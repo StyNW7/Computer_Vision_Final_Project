@@ -2,6 +2,7 @@ package id.example.wastify.helper
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.util.Log
 import id.example.wastify.ui.theme.WasteDarkGreen
 import id.example.wastify.ui.theme.WasteGreen
 import id.example.wastify.ui.theme.WasteYellow
@@ -18,9 +19,12 @@ class WasteClassifier(private val context: Context) {
                 .setMaxResults(1)
                 .build()
             classifier = ImageClassifier.createFromFileAndOptions(
-                context, "waste_model.tflite", options
+                context, "model_dynamic_quant.tflite", options
             )
         } catch (e: Exception) {
+            // Log the specific error to help with debugging
+            Log.e("WasteClassifier", "Error initializing TFLite classifier.", e)
+            // e.printStackTrace() is still good to keep
             e.printStackTrace()
         }
     }
@@ -30,9 +34,14 @@ class WasteClassifier(private val context: Context) {
 
         val image = TensorImage.fromBitmap(bitmap)
         val results = classifier?.classify(image)
+        Log.d("Classifier", "Results: $results")
+        results?.flatMap { it.categories }?.forEach {
+            Log.d("Classifier", "Label: '${it.label}', Score: ${it.score}")
+        }
 
         val topCategory = results?.flatMap { it.categories }
             ?.maxByOrNull { it.score }
+        Log.d("Classifier", "Label: ${topCategory?.label}, Score: ${topCategory?.score}")
 
         return when (topCategory?.label?.lowercase()) {
             "recyclable" -> ClassificationResult.Recyclable
