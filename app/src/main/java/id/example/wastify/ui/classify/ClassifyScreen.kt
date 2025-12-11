@@ -26,21 +26,28 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import id.example.wastify.helper.ClassificationResult
 import id.example.wastify.helper.WasteClassifier
+import id.example.wastify.network.RetrofitClient
 import id.example.wastify.ui.theme.WasteDarkGreen
 import id.example.wastify.ui.theme.WasteYellow
 import id.example.wastify.ui.theme.WasteYellowGreen
-import java.util.concurrent.Executors
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import java.io.File
+import java.io.FileOutputStream
 
 @Composable
 fun ClassifyScreen() {
@@ -197,24 +204,56 @@ fun captureAndClassify(
     classifier: WasteClassifier,
     onResult: (ClassificationResult) -> Unit
 ) {
-    val executor = Executors.newSingleThreadExecutor()
+    val mainExecutor = ContextCompat.getMainExecutor(context)
 
     imageCapture.takePicture(
-        executor,
+        mainExecutor,
         object : ImageCapture.OnImageCapturedCallback() {
             override fun onCaptureSuccess(imageProxy: ImageProxy) {
-                val bitmap = imageProxy.toBitmap()
+                CoroutineScope(Dispatchers.Default).launch {
+                    try {
+                        val rotation = imageProxy.imageInfo.rotationDegrees.toFloat()
+                        val bitmap = imageProxy.toBitmap().rotate(rotation)
+                        imageProxy.close()
+                        val file = File(context.cacheDir, "upload_image.jpg")
+                        val outputStream = FileOutputStream(file)
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+                        outputStream.flush()
+                        outputStream.close()
 
-                val rotation = imageProxy.imageInfo.rotationDegrees.toFloat()
-                val matrix = Matrix().apply { postRotate(rotation) }
-                val rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+                        withContext(Dispatchers.IO) {
+                            try {
+                                val requestFile =
+                                    file.asRequestBody("image/jpeg".toMediaTypeOrNull())
+                                val body = MultipartBody.Part.createFormData(
+                                    "file",
+                                    file.name,
+                                    requestFile
+                                )
 
-                val result = classifier.classify(rotatedBitmap)
+                                val response = RetrofitClient.apiService.uploadImage(body)
+                                val vector = response.features
 
-                imageProxy.close()
+                                val result = classifier.classify(vector)
 
-                ContextCompat.getMainExecutor(context).execute {
-                    onResult(result)
+                                withContext(Dispatchers.Main) {
+                                    onResult(result)
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                withContext(Dispatchers.Main) {
+                                    onResult(
+                                        ClassificationResult.Error(
+                                            e.localizedMessage ?: "Unknown Error"
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e("Camera", "Bitmap processing error", e)
+                        imageProxy.close()
+                    }
                 }
             }
 
@@ -223,4 +262,9 @@ fun captureAndClassify(
             }
         }
     )
+}
+
+private fun Bitmap.rotate(rotation: Float): Bitmap {
+    val matrix = Matrix().apply { postRotate(rotation) }
+    return Bitmap.createBitmap(this, 0, 0, width, height, matrix, true)
 }
