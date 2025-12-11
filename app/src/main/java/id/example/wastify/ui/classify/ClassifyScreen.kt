@@ -26,20 +26,28 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import id.example.wastify.helper.ClassificationResult
 import id.example.wastify.helper.WasteClassifier
+import id.example.wastify.network.RetrofitClient
 import id.example.wastify.ui.theme.WasteDarkGreen
 import id.example.wastify.ui.theme.WasteYellow
 import id.example.wastify.ui.theme.WasteYellowGreen
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import java.io.File
+import java.io.FileOutputStream
 import java.util.concurrent.Executors
 
 @Composable
@@ -197,24 +205,62 @@ fun captureAndClassify(
     classifier: WasteClassifier,
     onResult: (ClassificationResult) -> Unit
 ) {
-    val executor = Executors.newSingleThreadExecutor()
+    // FIX 1: Do not create a new Executor here.
+    // Use the Main Executor for the callback trigger.
+    val mainExecutor = ContextCompat.getMainExecutor(context)
 
     imageCapture.takePicture(
-        executor,
+        mainExecutor,
         object : ImageCapture.OnImageCapturedCallback() {
             override fun onCaptureSuccess(imageProxy: ImageProxy) {
-                val bitmap = imageProxy.toBitmap()
+                // We are now on the Main Thread.
+                // We must move to a background thread for Bitmap operations to avoid UI lag.
 
-                val rotation = imageProxy.imageInfo.rotationDegrees.toFloat()
-                val matrix = Matrix().apply { postRotate(rotation) }
-                val rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+                CoroutineScope(Dispatchers.Default).launch {
+                    try {
+                        // 1. Get Bitmap (Heavy operation)
+                        val rotation = imageProxy.imageInfo.rotationDegrees.toFloat()
+                        // FIX 2: Handle toBitmap() safety.
+                        // toBitmap() can sometimes throw if the underlying buffer format isn't compatible,
+                        // though usually fine with generic ImageCapture.
+                        val bitmap = imageProxy.toBitmap().rotate(rotation)
 
-                val result = classifier.classify(rotatedBitmap)
+                        // Close the proxy ASAP so CameraX can continue streaming
+                        imageProxy.close()
 
-                imageProxy.close()
+                        // 2. Save Bitmap to temp file
+                        val file = File(context.cacheDir, "upload_image.jpg")
+                        val outputStream = FileOutputStream(file)
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+                        outputStream.flush()
+                        outputStream.close()
 
-                ContextCompat.getMainExecutor(context).execute {
-                    onResult(result)
+                        // 3. API & Classification (Network IO)
+                        // Switch to IO dispatcher for network calls
+                        withContext(Dispatchers.IO) {
+                            try {
+                                val requestFile = file.asRequestBody("image/jpeg".toMediaTypeOrNull())
+                                val body = MultipartBody.Part.createFormData("file", file.name, requestFile)
+
+                                val response = RetrofitClient.apiService.uploadImage(body)
+                                val vector = response.features
+
+                                val result = classifier.classify(vector)
+
+                                withContext(Dispatchers.Main) {
+                                    onResult(result)
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                withContext(Dispatchers.Main) {
+                                    onResult(ClassificationResult.Error(e.localizedMessage ?: "Unknown Error"))
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e("Camera", "Bitmap processing error", e)
+                        imageProxy.close() // Ensure closed on error
+                    }
                 }
             }
 
@@ -223,4 +269,9 @@ fun captureAndClassify(
             }
         }
     )
+}
+
+private fun Bitmap.rotate(rotation: Float): Bitmap {
+    val matrix = Matrix().apply { postRotate(rotation) }
+    return Bitmap.createBitmap(this, 0, 0, width, height, matrix, true)
 }

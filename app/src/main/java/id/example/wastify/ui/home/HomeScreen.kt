@@ -22,7 +22,7 @@ import id.example.wastify.ui.theme.WasteYellowGreen
 
 @Composable
 fun HomeScreen(
-    onNavigateToClassify: () -> Unit
+    onNavigateToClassify: () -> Unit,
 ) {
     val brush = Brush.verticalGradient(
         colors = listOf(WasteDarkGreen, WasteGreen)
