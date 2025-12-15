@@ -7,6 +7,7 @@ import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
     // TODO: CHANGE THIS TO YOUR LAPTOP'S IPv4 ADDRESS
+    // (ipconfig the laptop then check the Wireless LAN adapter Wi-Fi)
     // Example: "http://192.168.1.5:5001/"
     private const val BASE_URL = "http://192.168.1.7:5001/"
 
