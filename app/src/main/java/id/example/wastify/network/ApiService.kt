@@ -8,8 +8,8 @@ import retrofit2.http.Part
 
 interface ApiService {
     @Multipart
-    @POST("extract-features") // Replace with your actual endpoint
+    @POST("extract-features")
     suspend fun uploadImage(
-        @Part image: MultipartBody.Part
+        @Part file: MultipartBody.Part
     ): ApiResponse
 }

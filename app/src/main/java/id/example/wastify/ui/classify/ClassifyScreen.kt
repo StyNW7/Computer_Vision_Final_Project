@@ -53,9 +53,11 @@ import java.io.FileOutputStream
 fun ClassifyScreen() {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope() // Use rememberCoroutineScope for UI events
 
     var hasCameraPermission by remember { mutableStateOf(false) }
     var classificationResult by remember { mutableStateOf<ClassificationResult?>(null) }
+    var isLoading by remember { mutableStateOf(false) } // Add loading state
 
     val imageCapture = remember { ImageCapture.Builder().build() }
     val classifier = remember { WasteClassifier(context) }
@@ -71,7 +73,7 @@ fun ClassifyScreen() {
 
     if (hasCameraPermission) {
         Box(modifier = Modifier.fillMaxSize().background(WasteDarkGreen)) {
-
+            // 1. Camera Preview (Hidden when result is shown)
             if (classificationResult == null) {
                 AndroidView(
                     factory = { ctx ->
@@ -102,6 +104,7 @@ fun ClassifyScreen() {
                     modifier = Modifier.fillMaxSize()
                 )
 
+                // Overlay Guide Box
                 Box(
                     modifier = Modifier
                         .align(Alignment.Center)
@@ -110,6 +113,17 @@ fun ClassifyScreen() {
                 )
             }
 
+            // 2. Loading Indicator
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha=0.5f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = WasteYellow)
+                }
+            }
+
+            // 3. Controls / Result
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -120,12 +134,13 @@ fun ClassifyScreen() {
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-
-                if (classificationResult == null) {
+                if (classificationResult == null && !isLoading) {
                     Button(
                         onClick = {
+                            isLoading = true
                             captureAndClassify(context, imageCapture, classifier) { result ->
                                 classificationResult = result
+                                isLoading = false
                             }
                         },
                         modifier = Modifier.size(80.dp),
@@ -139,7 +154,7 @@ fun ClassifyScreen() {
                             modifier = Modifier.size(32.dp)
                         )
                     }
-                } else {
+                } else if (classificationResult != null) {
                     ResultCard(result = classificationResult!!) {
                         classificationResult = null
                     }
@@ -197,7 +212,6 @@ fun ResultCard(result: ClassificationResult, onRetake: () -> Unit) {
     }
 }
 
-
 fun captureAndClassify(
     context: Context,
     imageCapture: ImageCapture,
@@ -210,55 +224,55 @@ fun captureAndClassify(
         mainExecutor,
         object : ImageCapture.OnImageCapturedCallback() {
             override fun onCaptureSuccess(imageProxy: ImageProxy) {
+                // Launch coroutine to handle file I/O and network
                 CoroutineScope(Dispatchers.Default).launch {
                     try {
                         val rotation = imageProxy.imageInfo.rotationDegrees.toFloat()
                         val bitmap = imageProxy.toBitmap().rotate(rotation)
-                        imageProxy.close()
+                        imageProxy.close() // Close imageProxy ASAP
+
+                        // Prepare file
                         val file = File(context.cacheDir, "upload_image.jpg")
                         val outputStream = FileOutputStream(file)
                         bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
                         outputStream.flush()
                         outputStream.close()
 
-                        withContext(Dispatchers.IO) {
-                            try {
-                                val requestFile =
-                                    file.asRequestBody("image/jpeg".toMediaTypeOrNull())
-                                val body = MultipartBody.Part.createFormData(
-                                    "file",
-                                    file.name,
-                                    requestFile
-                                )
+                        // Network Request
+                        val requestFile = file.asRequestBody("image/jpeg".toMediaTypeOrNull())
+                        val body = MultipartBody.Part.createFormData("file", file.name, requestFile)
 
-                                val response = RetrofitClient.apiService.uploadImage(body)
-                                val vector = response.features
+                        try {
+                            // Call API
+                            val response = RetrofitClient.apiService.uploadImage(body)
+                            val vector = response.features
 
-                                val result = classifier.classify(vector)
+                            // Classify locally using TFLite
+                            val result = classifier.classify(vector)
 
-                                withContext(Dispatchers.Main) {
-                                    onResult(result)
-                                }
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                                withContext(Dispatchers.Main) {
-                                    onResult(
-                                        ClassificationResult.Error(
-                                            e.localizedMessage ?: "Unknown Error"
-                                        )
-                                    )
-                                }
+                            withContext(Dispatchers.Main) {
+                                onResult(result)
+                            }
+                        } catch (e: Exception) {
+                            Log.e("API_ERROR", "Network request failed", e)
+                            withContext(Dispatchers.Main) {
+                                onResult(ClassificationResult.Error("Connection Failed: ${e.message}"))
                             }
                         }
+
                     } catch (e: Exception) {
                         Log.e("Camera", "Bitmap processing error", e)
                         imageProxy.close()
+                        withContext(Dispatchers.Main) {
+                            onResult(ClassificationResult.Error("Image Error: ${e.message}"))
+                        }
                     }
                 }
             }
 
             override fun onError(exception: ImageCaptureException) {
                 Log.e("Camera", "Capture failed", exception)
+                onResult(ClassificationResult.Error("Capture Failed"))
             }
         }
     )
