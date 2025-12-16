@@ -53,11 +53,11 @@ import java.io.FileOutputStream
 fun ClassifyScreen() {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val scope = rememberCoroutineScope() // Use rememberCoroutineScope for UI events
+    val scope = rememberCoroutineScope()
 
     var hasCameraPermission by remember { mutableStateOf(false) }
     var classificationResult by remember { mutableStateOf<ClassificationResult?>(null) }
-    var isLoading by remember { mutableStateOf(false) } // Add loading state
+    var isLoading by remember { mutableStateOf(false) }
 
     val imageCapture = remember { ImageCapture.Builder().build() }
     val classifier = remember { WasteClassifier(context) }
@@ -73,7 +73,6 @@ fun ClassifyScreen() {
 
     if (hasCameraPermission) {
         Box(modifier = Modifier.fillMaxSize().background(WasteDarkGreen)) {
-            // 1. Camera Preview (Hidden when result is shown)
             if (classificationResult == null) {
                 AndroidView(
                     factory = { ctx ->
@@ -104,7 +103,6 @@ fun ClassifyScreen() {
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Overlay Guide Box
                 Box(
                     modifier = Modifier
                         .align(Alignment.Center)
@@ -113,7 +111,6 @@ fun ClassifyScreen() {
                 )
             }
 
-            // 2. Loading Indicator
             if (isLoading) {
                 Box(
                     modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha=0.5f)),
@@ -123,7 +120,6 @@ fun ClassifyScreen() {
                 }
             }
 
-            // 3. Controls / Result
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -224,30 +220,26 @@ fun captureAndClassify(
         mainExecutor,
         object : ImageCapture.OnImageCapturedCallback() {
             override fun onCaptureSuccess(imageProxy: ImageProxy) {
-                // Launch coroutine to handle file I/O and network
+
                 CoroutineScope(Dispatchers.Default).launch {
                     try {
                         val rotation = imageProxy.imageInfo.rotationDegrees.toFloat()
                         val bitmap = imageProxy.toBitmap().rotate(rotation)
-                        imageProxy.close() // Close imageProxy ASAP
+                        imageProxy.close()
 
-                        // Prepare file
                         val file = File(context.cacheDir, "upload_image.jpg")
                         val outputStream = FileOutputStream(file)
                         bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
                         outputStream.flush()
                         outputStream.close()
 
-                        // Network Request
                         val requestFile = file.asRequestBody("image/jpeg".toMediaTypeOrNull())
                         val body = MultipartBody.Part.createFormData("file", file.name, requestFile)
 
                         try {
-                            // Call API
                             val response = RetrofitClient.apiService.uploadImage(body)
-                            val vector = response.features
+                            val vector = response.features.toFloatArray()
 
-                            // Classify locally using TFLite
                             val result = classifier.classify(vector)
 
                             withContext(Dispatchers.Main) {
