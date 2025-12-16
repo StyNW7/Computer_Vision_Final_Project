@@ -56,9 +56,9 @@ fun HistoryScreen() {
         if (historyList.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.History, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(64.dp))
+                    Icon(Icons.Default.History, contentDescription = null, tint = Color.Black, modifier = Modifier.size(64.dp))
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("No history yet. Go scan something!", color = Color.Gray)
+                    Text("No history yet. Go scan something!", color = Color.Black)
                 }
             }
         } else {
@@ -131,12 +131,13 @@ fun HistoryItem(item: ScanHistory) {
                 Text(
                     text = item.resultTitle,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
                 )
                 Text(
                     text = dateString,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
+                    color = Color.Black
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))

@@ -33,6 +33,7 @@ import id.example.wastify.ui.home.HomeScreen
 import id.example.wastify.ui.theme.WasteDarkGreen
 import id.example.wastify.ui.theme.WasteGreen
 import id.example.wastify.ui.theme.WasteYellow
+import id.example.wastify.ui.theme.WasteYellowGreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,11 +99,22 @@ fun WastifyBottomBar(navController: NavHostController) {
     ) {
         // 1. Home Item
         NavigationBarItem(
-            icon = { Icon(if(currentRoute == "home") Icons.Filled.Home else Icons.Outlined.Home, contentDescription = "Home") },
+            icon = {
+                Icon(
+                    imageVector = if(currentRoute == "home") Icons.Filled.Home else Icons.Outlined.Home,
+                    contentDescription = "Home"
+                )
+            },
             label = { Text("Home") },
             selected = currentRoute == "home",
             onClick = { navController.navigate("home") },
-            colors = NavigationBarItemDefaults.colors(indicatorColor = WasteYellow.copy(alpha = 0.5f))
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = WasteYellowGreen,
+                unselectedIconColor = WasteDarkGreen,
+                selectedTextColor = WasteDarkGreen,
+                unselectedTextColor = WasteGreen.copy(alpha = 0.75f),
+                indicatorColor = WasteDarkGreen.copy(alpha = 0.9f)
+            )
         )
 
         // 2. SCAN Item (Highlighted)
@@ -134,7 +146,13 @@ fun WastifyBottomBar(navController: NavHostController) {
             label = { Text("History") },
             selected = currentRoute == "history",
             onClick = { navController.navigate("history") },
-            colors = NavigationBarItemDefaults.colors(indicatorColor = WasteYellow.copy(alpha = 0.5f))
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = WasteYellowGreen,
+                unselectedIconColor = WasteDarkGreen,
+                selectedTextColor = WasteDarkGreen,
+                unselectedTextColor = WasteGreen.copy(alpha = 0.75f),
+                indicatorColor = WasteDarkGreen.copy(alpha = 0.9f)
+            )
         )
     }
 }
