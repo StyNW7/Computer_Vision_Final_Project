@@ -35,6 +35,8 @@ class WasteClassifier(private val context: Context) {
 
         // Input shape: [1, 114]
         val input = arrayOf(features)
+        Log.d("SHAPE", "Outer array size: ${input.size}")
+        Log.d("SHAPE", "Inner array size: ${input[0].size}")
 
         val output = Array(1) { FloatArray(1) }
 
