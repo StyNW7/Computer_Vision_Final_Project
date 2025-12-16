@@ -15,7 +15,7 @@ class WasteClassifier(private val context: Context) {
 
     init {
         try {
-            val model = FileUtil.loadMappedFile(context, "model_213.tflite")
+            val model = FileUtil.loadMappedFile(context, "model_dynamic_quant.tflite")
             val options = Interpreter.Options().apply {
                 setNumThreads(4)
             }
