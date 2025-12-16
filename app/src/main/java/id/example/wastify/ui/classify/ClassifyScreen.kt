@@ -245,7 +245,7 @@ fun captureAndClassify(
                         try {
                             // Call API
                             val response = RetrofitClient.apiService.uploadImage(body)
-                            val vector = response.features
+                            val vector = response.features.toFloatArray()
 
                             // Classify locally using TFLite
                             val result = classifier.classify(vector)
