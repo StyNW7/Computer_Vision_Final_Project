@@ -9,7 +9,7 @@ object RetrofitClient {
     // TODO: CHANGE THIS TO YOUR LAPTOP'S IPv4 ADDRESS
     // (ipconfig the laptop then check the Wireless LAN adapter Wi-Fi)
     // Example: "http://192.168.1.5:5001/"
-    private const val BASE_URL = "http://10.34.185.187:5001/"
+    private const val BASE_URL = "http://192.168.1.7:5001/"
 
     private val okHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS) // Increased timeout

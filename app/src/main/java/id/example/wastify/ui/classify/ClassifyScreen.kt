@@ -34,8 +34,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import id.example.wastify.data.local.HistoryDao
-import id.example.wastify.data.local.ScanHistory
 import id.example.wastify.data.local.WastifyDatabase
 import id.example.wastify.helper.ClassificationResult
 import id.example.wastify.helper.WasteClassifier
@@ -52,63 +50,72 @@ import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.Executor
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
 @Composable
 fun ClassifyScreen() {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope()
 
-    // 1. Initialize Database & DAO
+    // 1. Initialize Database Safely
+    // We use a 'remember' with a key to ensure we don't recreate it constantly
     val db = remember { WastifyDatabase.getDatabase(context) }
-    val historyDao = db.historyDao()
 
+    // State
     var hasCameraPermission by remember { mutableStateOf(false) }
     var classificationResult by remember { mutableStateOf<ClassificationResult?>(null) }
     var isLoading by remember { mutableStateOf(false) }
 
+    // Camera Components
+    val previewView = remember { PreviewView(context) }
     val imageCapture = remember { ImageCapture.Builder().build() }
     val classifier = remember { WasteClassifier(context) }
 
+    // Permission Launcher
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { granted -> hasCameraPermission = granted }
     )
 
+    // Request Permission on Start
     LaunchedEffect(Unit) {
         launcher.launch(Manifest.permission.CAMERA)
+    }
+
+    // --- CAMERA LOGIC (Moved outside AndroidView for stability) ---
+    LaunchedEffect(hasCameraPermission) {
+        if (hasCameraPermission) {
+            val cameraProvider = context.getCameraProvider()
+            try {
+                cameraProvider.unbindAll() // Unbind any previous use
+
+                val preview = Preview.Builder().build()
+                preview.setSurfaceProvider(previewView.surfaceProvider)
+
+                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+                cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    cameraSelector,
+                    preview,
+                    imageCapture
+                )
+            } catch (e: Exception) {
+                Log.e("Camera", "Binding failed", e)
+            }
+        }
     }
 
     if (hasCameraPermission) {
         Box(modifier = Modifier.fillMaxSize().background(WasteDarkGreen)) {
 
-            // --- Camera Preview ---
+            // 1. Camera Preview View
             if (classificationResult == null) {
                 AndroidView(
-                    factory = { ctx ->
-                        val previewView = PreviewView(ctx)
-                        val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-
-                        cameraProviderFuture.addListener({
-                            val cameraProvider = cameraProviderFuture.get()
-                            val preview = Preview.Builder().build()
-                            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-                            preview.setSurfaceProvider(previewView.surfaceProvider)
-
-                            try {
-                                cameraProvider.unbindAll()
-                                cameraProvider.bindToLifecycle(
-                                    lifecycleOwner,
-                                    cameraSelector,
-                                    preview,
-                                    imageCapture
-                                )
-                            } catch (exc: Exception) {
-                                Log.e("CameraX", "Use case binding failed", exc)
-                            }
-                        }, ContextCompat.getMainExecutor(ctx))
-                        previewView
-                    },
+                    factory = { previewView }, // Just return the already created view
                     modifier = Modifier.fillMaxSize()
                 )
 
@@ -121,7 +128,7 @@ fun ClassifyScreen() {
                 )
             }
 
-            // --- Loading Indicator ---
+            // 2. Loading Indicator
             if (isLoading) {
                 Box(
                     modifier = Modifier
@@ -133,7 +140,7 @@ fun ClassifyScreen() {
                 }
             }
 
-            // --- Bottom Controls & Result ---
+            // 3. Controls / Result
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -149,10 +156,12 @@ fun ClassifyScreen() {
                     Button(
                         onClick = {
                             isLoading = true
-                            // Pass the DAO to the function
-                            captureAndClassify(context, imageCapture, classifier, historyDao) { result ->
-                                classificationResult = result
-                                isLoading = false
+                            // Launch in the scope
+                            scope.launch {
+                                captureAndClassify(context, imageCapture, classifier, db) { result ->
+                                    classificationResult = result
+                                    isLoading = false
+                                }
                             }
                         },
                         modifier = Modifier.size(80.dp),
@@ -169,6 +178,7 @@ fun ClassifyScreen() {
                 } else if (classificationResult != null) {
                     ResultCard(result = classificationResult!!) {
                         classificationResult = null
+                        // Re-bind camera when retaking might be needed depending on device
                     }
                 }
             }
@@ -224,12 +234,20 @@ fun ResultCard(result: ClassificationResult, onRetake: () -> Unit) {
     }
 }
 
+// --- Helper: Get CameraProvider safely with Coroutines ---
+suspend fun Context.getCameraProvider(): ProcessCameraProvider = suspendCoroutine { continuation ->
+    val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+    cameraProviderFuture.addListener({
+        continuation.resume(cameraProviderFuture.get())
+    }, ContextCompat.getMainExecutor(this))
+}
+
 // --- Logic Function ---
 fun captureAndClassify(
     context: Context,
     imageCapture: ImageCapture,
     classifier: WasteClassifier,
-    historyDao: HistoryDao, // Add DAO param
+    db: WastifyDatabase, // Pass DB instead of DAO for safety
     onResult: (ClassificationResult) -> Unit
 ) {
     val mainExecutor = ContextCompat.getMainExecutor(context)
@@ -238,23 +256,25 @@ fun captureAndClassify(
         mainExecutor,
         object : ImageCapture.OnImageCapturedCallback() {
             override fun onCaptureSuccess(imageProxy: ImageProxy) {
+                // Use IO Dispatcher for File & Network operations
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
                         // 1. Process Bitmap
                         val rotation = imageProxy.imageInfo.rotationDegrees.toFloat()
                         val bitmap = imageProxy.toBitmap().rotate(rotation)
-                        imageProxy.close()
+                        imageProxy.close() // Close ASAP to free camera buffer
 
-                        // 2. Save Image Permanently to FilesDir
+                        // 2. Save Image
                         val timestamp = System.currentTimeMillis()
-                        val filename = "wastify_img_$timestamp.jpg"
+                        val filename = "wastify_${timestamp}.jpg"
                         val file = File(context.filesDir, filename)
                         val outputStream = FileOutputStream(file)
+
                         bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
                         outputStream.flush()
                         outputStream.close()
 
-                        // 3. Prepare Upload
+                        // 3. Prepare Network Request
                         val requestFile = file.asRequestBody("image/jpeg".toMediaTypeOrNull())
                         val body = MultipartBody.Part.createFormData("file", file.name, requestFile)
 
@@ -264,15 +284,15 @@ fun captureAndClassify(
                             val vector = response.features
                             val result = classifier.classify(vector)
 
-                            // 5. Save to Database (Only if successful)
+                            // 5. Save to Database
                             if (result !is ClassificationResult.Error) {
-                                val historyItem = ScanHistory(
+                                val historyItem = id.example.wastify.data.local.ScanHistory(
                                     imagePath = file.absolutePath,
                                     resultTitle = result.title,
                                     resultColor = result.color.toArgb().toLong(),
                                     timestamp = timestamp
                                 )
-                                historyDao.insertHistory(historyItem)
+                                db.historyDao().insertHistory(historyItem)
                             }
 
                             withContext(Dispatchers.Main) {
@@ -282,7 +302,7 @@ fun captureAndClassify(
                         } catch (e: Exception) {
                             Log.e("API_ERROR", "Network Request Failed", e)
                             withContext(Dispatchers.Main) {
-                                onResult(ClassificationResult.Error("Network Error: ${e.message}"))
+                                onResult(ClassificationResult.Error("Network Error: Check connection"))
                             }
                         }
 
@@ -290,7 +310,7 @@ fun captureAndClassify(
                         Log.e("Camera", "Bitmap processing error", e)
                         imageProxy.close()
                         withContext(Dispatchers.Main) {
-                            onResult(ClassificationResult.Error("Image Error: ${e.message}"))
+                            onResult(ClassificationResult.Error("Image Error"))
                         }
                     }
                 }

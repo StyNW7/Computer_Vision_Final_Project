@@ -17,17 +17,17 @@ data class User(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val username: String,
     val email: String,
-    val password: String // In a real app, hash this!
+    val password: String
 )
 
 // --- 2. History Entity ---
 @Entity(tableName = "scan_history")
 data class ScanHistory(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val imagePath: String,     // Path to the saved image file
-    val resultTitle: String,   // "Recyclable", "Organic", etc.
-    val resultColor: Long,     // Store Color as Long (ARGB)
-    val timestamp: Long        // System.currentTimeMillis()
+    val imagePath: String,
+    val resultTitle: String,
+    val resultColor: Long,
+    val timestamp: Long
 )
 
 // --- 3. User DAO ---
@@ -49,7 +49,6 @@ interface HistoryDao {
     @Insert
     suspend fun insertHistory(history: ScanHistory)
 
-    // Return a Flow so UI updates automatically when data changes
     @Query("SELECT * FROM scan_history ORDER BY timestamp DESC")
     fun getAllHistory(): Flow<List<ScanHistory>>
 }
@@ -70,7 +69,10 @@ abstract class WastifyDatabase : RoomDatabase() {
                     context.applicationContext,
                     WastifyDatabase::class.java,
                     "wastify_database"
-                ).build()
+                )
+                    // Wipes database if you change the schema (prevents crashes during development)
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }

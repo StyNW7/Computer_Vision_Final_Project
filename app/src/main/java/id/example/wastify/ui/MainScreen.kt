@@ -1,6 +1,7 @@
 // File: id/example/wastify/ui/MainScreen.kt
 package id.example.wastify.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -13,10 +14,12 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material3.*
+import id.example.wastify.R
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -60,12 +63,12 @@ fun WastifyTopBar(onSignOut: () -> Unit) {
             )
         },
         navigationIcon = {
-            // Optional: Put logo here if you prefer left alignment
-            Icon(
-                imageVector = Icons.Default.CameraAlt, // Placeholder for Logo
-                contentDescription = "Logo",
-                tint = WasteGreen,
-                modifier = Modifier.padding(start = 16.dp)
+            Image(
+                painter = painterResource(id = R.drawable.ic_logo_wastify),
+                contentDescription = "Wastify Logo",
+                modifier = Modifier
+                    .size(40.dp)
+                    .padding(start = 16.dp)
             )
         },
         actions = {
