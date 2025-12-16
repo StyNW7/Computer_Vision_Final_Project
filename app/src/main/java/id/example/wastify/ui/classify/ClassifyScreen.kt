@@ -27,12 +27,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import id.example.wastify.data.local.HistoryDao
+import id.example.wastify.data.local.ScanHistory
+import id.example.wastify.data.local.WastifyDatabase
 import id.example.wastify.helper.ClassificationResult
 import id.example.wastify.helper.WasteClassifier
 import id.example.wastify.network.RetrofitClient
@@ -53,11 +57,14 @@ import java.io.FileOutputStream
 fun ClassifyScreen() {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val scope = rememberCoroutineScope() // Use rememberCoroutineScope for UI events
+
+    // 1. Initialize Database & DAO
+    val db = remember { WastifyDatabase.getDatabase(context) }
+    val historyDao = db.historyDao()
 
     var hasCameraPermission by remember { mutableStateOf(false) }
     var classificationResult by remember { mutableStateOf<ClassificationResult?>(null) }
-    var isLoading by remember { mutableStateOf(false) } // Add loading state
+    var isLoading by remember { mutableStateOf(false) }
 
     val imageCapture = remember { ImageCapture.Builder().build() }
     val classifier = remember { WasteClassifier(context) }
@@ -73,7 +80,8 @@ fun ClassifyScreen() {
 
     if (hasCameraPermission) {
         Box(modifier = Modifier.fillMaxSize().background(WasteDarkGreen)) {
-            // 1. Camera Preview (Hidden when result is shown)
+
+            // --- Camera Preview ---
             if (classificationResult == null) {
                 AndroidView(
                     factory = { ctx ->
@@ -113,17 +121,19 @@ fun ClassifyScreen() {
                 )
             }
 
-            // 2. Loading Indicator
+            // --- Loading Indicator ---
             if (isLoading) {
                 Box(
-                    modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha=0.5f)),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.6f)),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator(color = WasteYellow)
                 }
             }
 
-            // 3. Controls / Result
+            // --- Bottom Controls & Result ---
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -134,11 +144,13 @@ fun ClassifyScreen() {
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+
                 if (classificationResult == null && !isLoading) {
                     Button(
                         onClick = {
                             isLoading = true
-                            captureAndClassify(context, imageCapture, classifier) { result ->
+                            // Pass the DAO to the function
+                            captureAndClassify(context, imageCapture, classifier, historyDao) { result ->
                                 classificationResult = result
                                 isLoading = false
                             }
@@ -212,10 +224,12 @@ fun ResultCard(result: ClassificationResult, onRetake: () -> Unit) {
     }
 }
 
+// --- Logic Function ---
 fun captureAndClassify(
     context: Context,
     imageCapture: ImageCapture,
     classifier: WasteClassifier,
+    historyDao: HistoryDao, // Add DAO param
     onResult: (ClassificationResult) -> Unit
 ) {
     val mainExecutor = ContextCompat.getMainExecutor(context)
@@ -224,39 +238,51 @@ fun captureAndClassify(
         mainExecutor,
         object : ImageCapture.OnImageCapturedCallback() {
             override fun onCaptureSuccess(imageProxy: ImageProxy) {
-                // Launch coroutine to handle file I/O and network
-                CoroutineScope(Dispatchers.Default).launch {
+                CoroutineScope(Dispatchers.IO).launch {
                     try {
+                        // 1. Process Bitmap
                         val rotation = imageProxy.imageInfo.rotationDegrees.toFloat()
                         val bitmap = imageProxy.toBitmap().rotate(rotation)
-                        imageProxy.close() // Close imageProxy ASAP
+                        imageProxy.close()
 
-                        // Prepare file
-                        val file = File(context.cacheDir, "upload_image.jpg")
+                        // 2. Save Image Permanently to FilesDir
+                        val timestamp = System.currentTimeMillis()
+                        val filename = "wastify_img_$timestamp.jpg"
+                        val file = File(context.filesDir, filename)
                         val outputStream = FileOutputStream(file)
                         bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
                         outputStream.flush()
                         outputStream.close()
 
-                        // Network Request
+                        // 3. Prepare Upload
                         val requestFile = file.asRequestBody("image/jpeg".toMediaTypeOrNull())
                         val body = MultipartBody.Part.createFormData("file", file.name, requestFile)
 
+                        // 4. API Call
                         try {
-                            // Call API
                             val response = RetrofitClient.apiService.uploadImage(body)
                             val vector = response.features
-
-                            // Classify locally using TFLite
                             val result = classifier.classify(vector)
+
+                            // 5. Save to Database (Only if successful)
+                            if (result !is ClassificationResult.Error) {
+                                val historyItem = ScanHistory(
+                                    imagePath = file.absolutePath,
+                                    resultTitle = result.title,
+                                    resultColor = result.color.toArgb().toLong(),
+                                    timestamp = timestamp
+                                )
+                                historyDao.insertHistory(historyItem)
+                            }
 
                             withContext(Dispatchers.Main) {
                                 onResult(result)
                             }
+
                         } catch (e: Exception) {
-                            Log.e("API_ERROR", "Network request failed", e)
+                            Log.e("API_ERROR", "Network Request Failed", e)
                             withContext(Dispatchers.Main) {
-                                onResult(ClassificationResult.Error("Connection Failed: ${e.message}"))
+                                onResult(ClassificationResult.Error("Network Error: ${e.message}"))
                             }
                         }
 
