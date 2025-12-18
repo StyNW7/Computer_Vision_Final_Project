@@ -15,5 +15,8 @@ val WasteYellow = Color(0xFFF0E491)
 val WasteYellowGreen = Color(0xFFBBC863)
 val WasteGreen = Color(0xFF658C58)
 val WasteDarkGreen = Color(0xFF31694E)
-val WasteSurface = Color(0xFFF5F9F5) // Light background for Home
-val WasteTextPrimary = Color(0xFF1A3C2B)
+
+// NEW: Add these so HistoryScreen doesn't crash
+val WasteSurface = Color(0xFFF4F7F4) // Light greenish-grey background
+val WasteTextPrimary = Color(0xFF1A3C2B) // Dark green text
+val BackgroundGradient = listOf(WasteDarkGreen, WasteGreen)
