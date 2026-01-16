@@ -43,3 +43,7 @@ Wastify is an Android application that helps users identify whether waste is **o
 - 🧪 **Model Testing Code:** [Colab Link](https://colab.research.google.com/drive/1JacnNU4JD9MSwznnfGRl7crC-aDoPt5W?usp=sharing)
 
 ---
+
+## 👥 Team
+
+Made by: Stanley Nathanael Wijaya, Nathaniel Alexander, and Roderich Cavine Chow
