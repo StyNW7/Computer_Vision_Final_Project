@@ -7,13 +7,13 @@ import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
 
-    // TODO: CHANGE THIS TO YOUR LAPTOP'S IPv4 ADDRESS
     // (ipconfig the laptop then check the Wireless LAN adapter Wi-Fi)
     // Example: "http://192.168.1.5:5001/"
-    private const val BASE_URL = "http://10.30.112.71:5001/"
+
+    private const val BASE_URL = "http://192.168.1.2:5001/"
 
     private val okHttpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS) // Increased timeout
+        .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()

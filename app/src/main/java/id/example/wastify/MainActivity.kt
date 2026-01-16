@@ -1,4 +1,3 @@
-// File: id/example/wastify/MainActivity.kt
 package id.example.wastify
 
 import android.os.Bundle
@@ -15,7 +14,6 @@ class MainActivity : ComponentActivity() {
             WastifyTheme {
                 MainScreen(
                     onSignOut = {
-                        // Handle Sign Out Logic here
                         Toast.makeText(this, "Signed Out Successfully", Toast.LENGTH_SHORT).show()
                     }
                 )

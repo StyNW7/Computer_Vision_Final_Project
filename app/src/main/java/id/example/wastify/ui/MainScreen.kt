@@ -1,4 +1,3 @@
-// File: id/example/wastify/ui/MainScreen.kt
 package id.example.wastify.ui
 
 import androidx.compose.foundation.Image
@@ -40,12 +39,10 @@ import id.example.wastify.ui.theme.WasteYellowGreen
 fun MainScreen(onSignOut: () -> Unit) {
     val navController = rememberNavController()
 
-    // We use Scaffold to hold the TopBar and BottomBar
     Scaffold(
         topBar = { WastifyTopBar(onSignOut) },
         bottomBar = { WastifyBottomBar(navController) }
     ) { innerPadding ->
-        // NavHost handles switching screens
         Box(modifier = Modifier.padding(innerPadding)) {
             NavigationGraph(navController = navController)
         }
@@ -58,7 +55,7 @@ fun WastifyTopBar(onSignOut: () -> Unit) {
     CenterAlignedTopAppBar(
         title = {
             Text(
-                text = "Wastify", // You can replace this text with an Image/Logo composable
+                text = "Wastify",
                 color = WasteDarkGreen,
                 fontWeight = FontWeight.Black
             )
@@ -97,7 +94,7 @@ fun WastifyBottomBar(navController: NavHostController) {
         contentColor = WasteDarkGreen,
         tonalElevation = 8.dp
     ) {
-        // 1. Home Item
+        // Home Item
         NavigationBarItem(
             icon = {
                 Icon(
@@ -117,10 +114,9 @@ fun WastifyBottomBar(navController: NavHostController) {
             )
         )
 
-        // 2. SCAN Item (Highlighted)
+        // SCAN Item (Highlighted)
         NavigationBarItem(
             icon = {
-                // Custom FAB-like look for the middle button
                 Surface(
                     shape = CircleShape,
                     color = WasteGreen,
@@ -134,13 +130,13 @@ fun WastifyBottomBar(navController: NavHostController) {
                     )
                 }
             },
-            label = { Text("", maxLines = 1) }, // Empty label for clean look
+            label = { Text("", maxLines = 1) },
             selected = currentRoute == "classify",
             onClick = { navController.navigate("classify") },
-            colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent) // Remove default indicator
+            colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent)
         )
 
-        // 3. History Item
+        // History Item
         NavigationBarItem(
             icon = { Icon(if(currentRoute == "history") Icons.Filled.History else Icons.Outlined.History, contentDescription = "History") },
             label = { Text("History") },

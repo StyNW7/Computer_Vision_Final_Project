@@ -5,7 +5,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
 
-// --- Weather Models ---
+// Weather Models
 data class WeatherResponse(
     @SerializedName("current_weather") val currentWeather: CurrentWeather
 )
@@ -16,7 +16,7 @@ data class CurrentWeather(
     val weathercode: Int
 )
 
-// --- Weather API Client (Separate from your Python Backend) ---
+// Weather API Client
 object WeatherClient {
     private const val BASE_URL = "https://api.open-meteo.com/"
 
@@ -30,12 +30,11 @@ object WeatherClient {
 }
 
 interface WeatherService {
-    // Hardcoded to South Tangerang/Jakarta coordinates for demo
     @GET("v1/forecast?latitude=-6.29&longitude=106.73&current_weather=true")
     suspend fun getWeather(): WeatherResponse
 }
 
-// --- Static Quotes ---
+// Static Quotes
 val EnvironmentalQuotes = listOf(
     "The greatest threat to our planet is the belief that someone else will save it.",
     "Waste isn't waste until we waste it.",

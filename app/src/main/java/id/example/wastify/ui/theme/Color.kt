@@ -16,7 +16,6 @@ val WasteYellowGreen = Color(0xFFBBC863)
 val WasteGreen = Color(0xFF658C58)
 val WasteDarkGreen = Color(0xFF31694E)
 
-// NEW: Add these so HistoryScreen doesn't crash
-val WasteSurface = Color(0xFFF4F7F4) // Light greenish-grey background
-val WasteTextPrimary = Color(0xFF1A3C2B) // Dark green text
+val WasteSurface = Color(0xFFF4F7F4)
+val WasteTextPrimary = Color(0xFF1A3C2B)
 val BackgroundGradient = listOf(WasteDarkGreen, WasteGreen)

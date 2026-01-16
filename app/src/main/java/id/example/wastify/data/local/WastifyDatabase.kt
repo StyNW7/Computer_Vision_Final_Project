@@ -11,7 +11,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import kotlinx.coroutines.flow.Flow
 
-// --- 1. User Entity ---
+// User Entity
 @Entity(tableName = "users")
 data class User(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
@@ -20,7 +20,7 @@ data class User(
     val password: String
 )
 
-// --- 2. History Entity ---
+// History Entity
 @Entity(tableName = "scan_history")
 data class ScanHistory(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
@@ -30,7 +30,7 @@ data class ScanHistory(
     val timestamp: Long
 )
 
-// --- 3. User DAO ---
+// User DAO
 @Dao
 interface UserDao {
     @Insert
@@ -43,7 +43,7 @@ interface UserDao {
     suspend fun login(username: String, password: String): User?
 }
 
-// --- 4. History DAO ---
+// History DAO
 @Dao
 interface HistoryDao {
     @Insert
@@ -53,7 +53,7 @@ interface HistoryDao {
     fun getAllHistory(): Flow<List<ScanHistory>>
 }
 
-// --- 5. Database Setup ---
+// Database Setup
 @Database(entities = [User::class, ScanHistory::class], version = 1, exportSchema = false)
 abstract class WastifyDatabase : RoomDatabase() {
     abstract fun userDao(): UserDao
@@ -70,7 +70,6 @@ abstract class WastifyDatabase : RoomDatabase() {
                     WastifyDatabase::class.java,
                     "wastify_database"
                 )
-                    // Wipes database if you change the schema (prevents crashes during development)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

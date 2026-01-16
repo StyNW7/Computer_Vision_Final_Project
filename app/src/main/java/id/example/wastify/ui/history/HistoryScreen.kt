@@ -32,11 +32,10 @@ import java.util.Locale
 
 @Composable
 fun HistoryScreen() {
+
     val context = LocalContext.current
-    // safely get the database
     val db = remember { WastifyDatabase.getDatabase(context) }
 
-    // Collect Flow safely. If db fails, it defaults to empty list instead of crashing.
     val historyList by db.historyDao().getAllHistory().collectAsState(initial = emptyList())
 
     Column(
@@ -64,7 +63,7 @@ fun HistoryScreen() {
         } else {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 80.dp) // Space for bottom bar
+                contentPadding = PaddingValues(bottom = 80.dp)
             ) {
                 items(historyList) { item ->
                     HistoryItem(item)
@@ -76,7 +75,7 @@ fun HistoryScreen() {
 
 @Composable
 fun HistoryItem(item: ScanHistory) {
-    // Format Date
+
     val dateFormat = SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault())
     val dateString = dateFormat.format(Date(item.timestamp))
 
@@ -90,8 +89,6 @@ fun HistoryItem(item: ScanHistory) {
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // --- Image Loading Logic ---
-            // We use a Box to hold the image or a placeholder if it fails
             Box(
                 modifier = Modifier
                     .size(60.dp)
@@ -101,7 +98,6 @@ fun HistoryItem(item: ScanHistory) {
             ) {
                 val file = File(item.imagePath)
                 if (file.exists()) {
-                    // Load bitmap safely
                     val bitmap = remember(item.imagePath) {
                         try {
                             BitmapFactory.decodeFile(file.absolutePath)
@@ -142,11 +138,9 @@ fun HistoryItem(item: ScanHistory) {
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // --- FIX: Safely convert Long to Int for Color ---
                 Surface(
                     modifier = Modifier.size(12.dp),
                     shape = androidx.compose.foundation.shape.CircleShape,
-                    // We cast the Long back to Int to ensure Color reads it correctly as ARGB
                     color = Color(item.resultColor.toInt())
                 ) {}
             }

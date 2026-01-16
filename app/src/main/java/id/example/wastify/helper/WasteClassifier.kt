@@ -33,7 +33,6 @@ class WasteClassifier(private val context: Context) {
             return ClassificationResult.Error("Invalid input size")
         }
 
-        // Input shape: [1, 114]
         val input = arrayOf(features)
         Log.d("SHAPE", "Outer array size: ${input.size}")
         Log.d("SHAPE", "Inner array size: ${input[0].size}")

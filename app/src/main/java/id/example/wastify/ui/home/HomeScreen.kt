@@ -1,4 +1,3 @@
-// File: id/example/wastify/ui/home/HomeScreen.kt
 package id.example.wastify.ui.home
 
 import androidx.compose.foundation.background
@@ -48,7 +47,7 @@ fun HomeScreen(userName: String = "Wastify User") {
             .padding(horizontal = 24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // 1. Welcome Section
+        // Welcome Section
         item {
             Spacer(modifier = Modifier.height(24.dp))
             Text(
@@ -64,17 +63,16 @@ fun HomeScreen(userName: String = "Wastify User") {
             )
         }
 
-        // 2. Weather Card
+        // Weather Card
         item {
             WeatherCard(temp = temperature, code = weatherCode)
         }
 
-        // 3. Quote Section
+        // Quote Section
         item {
             QuoteCard(
                 quote = EnvironmentalQuotes[currentQuoteIndex],
                 onRefresh = {
-                    // Pick a random index different from current
                     var newIndex: Int
                     do {
                         newIndex = (EnvironmentalQuotes.indices).random()
@@ -85,7 +83,7 @@ fun HomeScreen(userName: String = "Wastify User") {
         }
 
         item {
-            Spacer(modifier = Modifier.height(100.dp)) // Space for bottom bar
+            Spacer(modifier = Modifier.height(100.dp))
         }
     }
 }
